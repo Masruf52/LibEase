@@ -12,18 +12,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -35,28 +37,35 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.repository.AuthRepository
-import com.example.data.repository.FirebaseAuthRepository
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.repository.AuthUserInfo
+import com.example.ui.viewmodel.AuthenticationViewModel
 import kotlinx.coroutines.delay
 
 @Composable
 fun SplashScreen(
-    authRepository: AuthRepository = FirebaseAuthRepository(),
+    authViewModel: AuthenticationViewModel = viewModel(),
     onNavigateToLogin: () -> Unit,
-    onNavigateToMain: () -> Unit
+    onNavigateToMain: (AuthUserInfo) -> Unit
 ) {
-    // Pulse animation for the central emblem
+    val context = LocalContext.current
+    var hasNavigated by remember { mutableStateOf(false) }
+
     val infiniteTransition = rememberInfiniteTransition(label = "emblemPulse")
     val scale by infiniteTransition.animateFloat(
         initialValue = 0.95f,
@@ -68,15 +77,29 @@ fun SplashScreen(
         label = "scale"
     )
 
-    // Automatically navigate after 1.8 seconds
-    LaunchedEffect(Unit) {
-        delay(1800)
-        val currentUser = authRepository.getCurrentUser()
-        if (currentUser != null) {
-            onNavigateToMain()
-        } else {
-            onNavigateToLogin()
+    val triggerAuthCheck: () -> Unit = {
+        if (!hasNavigated) {
+            authViewModel.attemptAutoSignIn(
+                context = context,
+                onAuthSuccess = { user ->
+                    if (!hasNavigated) {
+                        hasNavigated = true
+                        onNavigateToMain(user)
+                    }
+                },
+                onUnauthenticated = {
+                    if (!hasNavigated) {
+                        hasNavigated = true
+                        onNavigateToLogin()
+                    }
+                }
+            )
         }
+    }
+
+    LaunchedEffect(Unit) {
+        delay(900)
+        triggerAuthCheck()
     }
 
     Surface(
@@ -94,7 +117,8 @@ fun SplashScreen(
                             MaterialTheme.colorScheme.surface
                         )
                     )
-                ),
+                )
+                .windowInsetsPadding(WindowInsets.safeDrawing),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -104,7 +128,6 @@ fun SplashScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Central Glowing Icon Container
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.scale(scale)
@@ -133,7 +156,6 @@ fun SplashScreen(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Brand Title
                 Text(
                     text = "LibEase",
                     style = MaterialTheme.typography.headlineLarge,
@@ -144,9 +166,8 @@ fun SplashScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // System Slogan
                 Text(
-                    text = "Campus Library & Resource System",
+                    text = "Campus Library & Cloud Resource System",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -154,19 +175,17 @@ fun SplashScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Feature Highlights Pills
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SplashFeaturePill(icon = Icons.Default.AutoStories, label = "Catalog")
-                    SplashFeaturePill(icon = Icons.Default.QrCodeScanner, label = "Fast Borrow")
+                    SplashFeaturePill(icon = Icons.Default.CloudDone, label = "Cloud Sync")
                     SplashFeaturePill(icon = Icons.Default.Shield, label = "Role Portals")
                 }
 
                 Spacer(modifier = Modifier.height(48.dp))
 
-                // Ambient Loading Spinner
                 CircularProgressIndicator(
                     modifier = Modifier.size(28.dp),
                     strokeWidth = 3.dp,
@@ -176,33 +195,27 @@ fun SplashScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "Initializing library registry…",
+                    text = "Checking Google Sign-In session…",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.outline
                 )
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Manual Skip / Enter Button for fast access
                 Button(
-                    onClick = {
-                        val currentUser = authRepository.getCurrentUser()
-                        if (currentUser != null) {
-                            onNavigateToMain()
-                        } else {
-                            onNavigateToLogin()
-                        }
-                    },
+                    onClick = triggerAuthCheck,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         contentColor = MaterialTheme.colorScheme.onSurface
                     ),
-                    modifier = Modifier.height(40.dp)
+                    modifier = Modifier
+                        .height(48.dp)
+                        .testTag("splash_get_started_button")
                 ) {
                     Text(
                         text = "Get Started",
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }

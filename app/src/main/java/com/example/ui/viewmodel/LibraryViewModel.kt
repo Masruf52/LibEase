@@ -11,8 +11,10 @@ import com.example.data.model.NotificationItem
 import com.example.data.model.Reservation
 import com.example.data.model.User
 import com.example.data.model.UserRole
+import com.example.data.remote.FirestoreLibraryDataSource
 import com.example.data.repository.AuthUserInfo
 import com.example.data.repository.LibraryRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -45,17 +47,14 @@ class LibraryViewModel @JvmOverloads constructor(
             borrowRecordDao = database.borrowRecordDao(),
             reservationDao = database.reservationDao(),
             fineDao = database.fineDao(),
-            notificationDao = database.notificationDao()
+            notificationDao = database.notificationDao(),
+            firestoreDataSource = FirestoreLibraryDataSource(application)
         )
     }
 
-    init {
-        if (customRepository == null) {
-            viewModelScope.launch {
-                repository.seedInitialDataIfNeeded()
-            }
-        }
-    }
+    private var cloudSyncJobs: List<Job> = emptyList()
+    private var boundAuthUid: String? = null
+    private var boundRole: UserRole? = null
 
     val allBooks: StateFlow<List<Book>> = repository.allBooks.stateIn(
         scope = viewModelScope,
@@ -94,10 +93,10 @@ class LibraryViewModel @JvmOverloads constructor(
     )
 
     // User & Session Management
-    private val _currentRole = MutableStateFlow(UserRole.ADMIN)
+    private val _currentRole = MutableStateFlow(UserRole.STUDENT)
     val currentRole: StateFlow<UserRole> = _currentRole.asStateFlow()
 
-    private val _currentUserId = MutableStateFlow("admin_01")
+    private val _currentUserId = MutableStateFlow("student_01")
     val currentUserId: StateFlow<String> = _currentUserId.asStateFlow()
 
     val currentUser: StateFlow<User?> = combine(allUsers, _currentUserId) { users, id ->
@@ -154,15 +153,74 @@ class LibraryViewModel @JvmOverloads constructor(
     private val _snackbarEvent = MutableSharedFlow<String>()
     val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
 
+    /**
+     * Binds an authenticated Google / Firebase user session and starts real-time
+     * Cloud Firestore <-> Room synchronization. Never called while unauthenticated.
+     */
+    fun bindAuthenticatedUser(
+        authUser: AuthUserInfo,
+        preferredRole: UserRole = _currentRole.value
+    ) {
+        if (boundAuthUid == authUser.uid && cloudSyncJobs.any { it.isActive }) {
+            if (boundRole != preferredRole) {
+                setRole(preferredRole)
+            }
+            return
+        }
+
+        cloudSyncJobs.forEach { it.cancel() }
+        boundAuthUid = authUser.uid
+        boundRole = preferredRole
+        _currentUserId.value = authUser.uid
+        _currentRole.value = preferredRole
+        _selectedNavTab.value = "home"
+
+        cloudSyncJobs = repository.syncCloudSession(
+            uid = authUser.uid,
+            email = authUser.email ?: "",
+            displayName = authUser.displayName ?: "",
+            preferredRole = preferredRole,
+            scope = viewModelScope
+        )
+    }
+
+    fun handleAuthenticatedUser(authUser: AuthUserInfo, preferredRole: UserRole = UserRole.STUDENT) {
+        bindAuthenticatedUser(authUser, preferredRole)
+    }
+
+    /**
+     * Cancels active Firestore snapshot listeners on sign-out to prevent PERMISSION_DENIED errors.
+     */
+    fun clearAuthenticatedSession() {
+        cloudSyncJobs.forEach { it.cancel() }
+        cloudSyncJobs = emptyList()
+        boundAuthUid = null
+        boundRole = null
+        repository.clearCloudSession()
+    }
+
     // Actions
     fun setRole(role: UserRole) {
         _currentRole.value = role
-        if (role == UserRole.ADMIN) {
-            _currentUserId.value = "admin_01"
-            showFeedback("Switched to Admin / Librarian view")
+        boundRole = role
+        _selectedNavTab.value = "home"
+
+        val activeUid = boundAuthUid
+        if (activeUid != null) {
+            _currentUserId.value = activeUid
+            viewModelScope.launch {
+                repository.syncRolePreference(role)
+            }
+            val label = if (role == UserRole.ADMIN) "Librarian / Admin" else "Student"
+            showFeedback("Switched to $label portal • Cloud role updated")
         } else {
-            _currentUserId.value = "student_01"
-            showFeedback("Switched to Student / Member view (Alex Rivera)")
+            if (role == UserRole.ADMIN) {
+                _currentUserId.value = "admin_01"
+                showFeedback("Switched to Admin / Librarian view")
+            } else {
+                _currentUserId.value = "student_01"
+                showFeedback("Switched to Student / Member view")
+            }
         }
     }
 
@@ -171,32 +229,13 @@ class LibraryViewModel @JvmOverloads constructor(
         val user = allUsers.value.find { it.userId == userId }
         if (user != null) {
             _currentRole.value = user.role
-            showFeedback("Logged in as ${user.name}")
-        }
-    }
-
-    fun handleAuthenticatedUser(authUser: AuthUserInfo, preferredRole: UserRole = UserRole.STUDENT) {
-        val email = authUser.email ?: ""
-        val existing = allUsers.value.find { it.email.equals(email, ignoreCase = true) }
-        if (existing != null) {
-            selectUser(existing.userId)
-        } else {
-            viewModelScope.launch {
-                val newId = "usr_${System.currentTimeMillis().toString().takeLast(6)}"
-                val displayName = authUser.displayName?.ifBlank { null }
-                    ?: if (email.contains("@")) email.substringBefore("@") else "Member"
-                val newUser = User(
-                    userId = newId,
-                    name = displayName,
-                    email = email.ifBlank { "user_$newId@libease.edu" },
-                    role = preferredRole,
-                    department = if (preferredRole == UserRole.ADMIN) "Library Staff" else "General Circulation",
-                    studentId = if (preferredRole == UserRole.ADMIN) "LIB-STAFF-${(100..999).random()}" else "LIB-STU-${(1000..9999).random()}",
-                    membershipStatus = "Active"
-                )
-                repository.insertUser(newUser)
-                selectUser(newUser.userId)
+            boundRole = user.role
+            if (boundAuthUid != null) {
+                viewModelScope.launch {
+                    repository.syncRolePreference(user.role)
+                }
             }
+            showFeedback("Viewing profile as ${user.name}")
         }
     }
 
@@ -303,7 +342,7 @@ class LibraryViewModel @JvmOverloads constructor(
                 durationDays = _settings.value.defaultBorrowDays
             )
             if (success) {
-                showFeedback("Book checked out successfully! Enjoy your reading.")
+                showFeedback("Book checked out & synced to Cloud!")
                 _selectedBook.value = null
             } else {
                 showFeedback("No copies currently available. You can place a hold.")
@@ -320,7 +359,7 @@ class LibraryViewModel @JvmOverloads constructor(
                 bookId = bookId
             )
             if (success) {
-                showFeedback("Reservation placed! We will alert you when it arrives.")
+                showFeedback("Reservation placed! Synced with Cloud Firestore.")
                 _selectedBook.value = null
             }
         }
@@ -330,7 +369,7 @@ class LibraryViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             val success = repository.renewBook(borrowId, _settings.value.defaultBorrowDays)
             if (success) {
-                showFeedback("Loan successfully extended by ${_settings.value.defaultBorrowDays} days!")
+                showFeedback("Loan extended by ${_settings.value.defaultBorrowDays} days!")
             }
         }
     }
@@ -339,7 +378,7 @@ class LibraryViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             val success = repository.returnBook(borrowId, _settings.value.finePerDay)
             if (success) {
-                showFeedback("Book returned and catalog inventory updated!")
+                showFeedback("Book returned and cloud catalog updated!")
             }
         }
     }
@@ -417,7 +456,7 @@ class LibraryViewModel @JvmOverloads constructor(
                     description = description.trim()
                 )
                 repository.updateBook(updated)
-                showFeedback("Book \"$cleanTitle\" updated successfully!")
+                showFeedback("Book \"$cleanTitle\" updated & synced!")
             } else {
                 val safeTotal = totalCopies.coerceAtLeast(1)
                 val resolvedStatus = availabilityStatus
@@ -512,11 +551,10 @@ class LibraryViewModel @JvmOverloads constructor(
 
     fun handleBarcodeScan(scannedCode: String) {
         viewModelScope.launch {
-            // Check if matches ISBN or title
             val book = allBooks.value.find {
                 it.isbn.contains(scannedCode, ignoreCase = true) ||
-                it.bookId.contains(scannedCode, ignoreCase = true) ||
-                it.title.contains(scannedCode, ignoreCase = true)
+                    it.bookId.contains(scannedCode, ignoreCase = true) ||
+                    it.title.contains(scannedCode, ignoreCase = true)
             }
             if (book != null) {
                 _selectedBook.value = book
@@ -525,10 +563,9 @@ class LibraryViewModel @JvmOverloads constructor(
                 return@launch
             }
 
-            // Check if matches Member ID
             val member = allUsers.value.find {
                 it.studentId.contains(scannedCode, ignoreCase = true) ||
-                it.userId.contains(scannedCode, ignoreCase = true)
+                    it.userId.contains(scannedCode, ignoreCase = true)
             }
             if (member != null) {
                 _selectedMember.value = member
@@ -539,6 +576,11 @@ class LibraryViewModel @JvmOverloads constructor(
 
             showFeedback("No item or member found matching barcode \"$scannedCode\".")
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        clearAuthenticatedSession()
     }
 
     private fun showFeedback(message: String) {

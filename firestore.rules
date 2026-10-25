@@ -1,0 +1,464 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Security Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isNumeric(val) {
+      return val is int || val is float;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() &&
+             ('email' in request.auth.token) &&
+             request.auth.token.email == 'masruftaj30@gmail.com' &&
+             ('email_verified' in request.auth.token) &&
+             request.auth.token.email_verified == true;
+    }
+
+    function isLibrarian() {
+      return isBootstrappedAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/librarians/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/librarians/$(request.auth.uid)).data.active == true
+      );
+    }
+
+    // --- Validation Blueprints (Anti-Update-Gap) ---
+
+    function isValidBook(data) {
+      return data.keys().hasAll([
+               'campusId', 'createdByUid', 'title', 'author', 'isbn',
+               'category', 'totalCopies', 'availableCopies', 'shelfNumber',
+               'status', 'availabilityStatus', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'campusId', 'createdByUid', 'title', 'author', 'isbn',
+               'category', 'publisher', 'publicationYear', 'description',
+               'coverImage', 'coverGradientIndex', 'totalCopies',
+               'availableCopies', 'shelfNumber', 'rating', 'status',
+               'availabilityStatus', 'createdAt', 'updatedAt'
+             ]) &&
+             data.campusId == 'main' &&
+             isValidId(data.createdByUid) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.author is string && data.author.size() >= 1 && data.author.size() <= 150 &&
+             data.isbn is string && data.isbn.size() >= 1 && data.isbn.size() <= 40 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+             (!('publisher' in data) || (data.publisher is string && data.publisher.size() <= 120)) &&
+             (!('publicationYear' in data) || (data.publicationYear is int && data.publicationYear >= 1000 && data.publicationYear <= 2100)) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+             (!('coverImage' in data) || (data.coverImage is string && data.coverImage.size() <= 500)) &&
+             (!('coverGradientIndex' in data) || (data.coverGradientIndex is int && data.coverGradientIndex >= 0 && data.coverGradientIndex <= 10)) &&
+             data.totalCopies is int && data.totalCopies >= 0 && data.totalCopies <= 1000 &&
+             data.availableCopies is int && data.availableCopies >= 0 && data.availableCopies <= data.totalCopies &&
+             data.shelfNumber is string && data.shelfNumber.size() >= 1 && data.shelfNumber.size() <= 60 &&
+             (!('rating' in data) || (isNumeric(data.rating) && data.rating >= 0 && data.rating <= 5)) &&
+             data.status in ['Available', 'Borrowed', 'Reserved', 'Out of Stock'] &&
+             data.availabilityStatus in ['Available', 'Borrowed', 'Reserved', 'Out of Stock'] &&
+             data.createdAt is timestamp &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidUserAccount(data) {
+      return data.keys().hasAll(['userId', 'name', 'email', 'preferredRole', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['userId', 'name', 'email', 'phone', 'preferredRole', 'createdAt', 'updatedAt']) &&
+             isValidId(data.userId) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+             data.email is string && data.email.size() >= 1 && data.email.size() <= 200 &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 40)) &&
+             data.preferredRole in ['ADMIN', 'STUDENT'] &&
+             data.createdAt is timestamp &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidLibrarianRole(data) {
+      return data.keys().hasAll(['userId', 'active', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['userId', 'active', 'createdAt', 'updatedAt']) &&
+             isValidId(data.userId) &&
+             data.active is bool &&
+             data.createdAt is timestamp &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidMemberProfile(data) {
+      return data.keys().hasAll([
+               'ownerUid', 'name', 'studentId', 'roleLabel',
+               'membershipStatus', 'totalBorrowedCount', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'ownerUid', 'name', 'studentId', 'department', 'roleLabel',
+               'membershipStatus', 'totalBorrowedCount', 'createdAt', 'updatedAt'
+             ]) &&
+             isValidId(data.ownerUid) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+             data.studentId is string && data.studentId.size() >= 1 && data.studentId.size() <= 60 &&
+             (!('department' in data) || (data.department is string && data.department.size() <= 120)) &&
+             data.roleLabel in ['ADMIN', 'STUDENT'] &&
+             data.membershipStatus in ['Active', 'Inactive', 'Pending'] &&
+             data.totalBorrowedCount is int && data.totalBorrowedCount >= 0 && data.totalBorrowedCount <= 10000 &&
+             data.createdAt is timestamp &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidLoan(data) {
+      return data.keys().hasAll([
+               'ownerUid', 'userId', 'userName', 'bookId', 'bookTitle',
+               'bookAuthor', 'borrowDateMs', 'dueDateMs', 'status',
+               'fineAmount', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'ownerUid', 'userId', 'userName', 'bookId', 'bookTitle',
+               'bookAuthor', 'borrowDateMs', 'dueDateMs', 'returnDateMs',
+               'status', 'fineAmount', 'createdAt', 'updatedAt'
+             ]) &&
+             isValidId(data.ownerUid) &&
+             isValidId(data.userId) &&
+             data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 120 &&
+             isValidId(data.bookId) &&
+             data.bookTitle is string && data.bookTitle.size() >= 1 && data.bookTitle.size() <= 200 &&
+             data.bookAuthor is string && data.bookAuthor.size() >= 1 && data.bookAuthor.size() <= 150 &&
+             data.borrowDateMs is int && data.borrowDateMs > 0 &&
+             data.dueDateMs is int && data.dueDateMs >= data.borrowDateMs &&
+             (!('returnDateMs' in data) || (data.returnDateMs is int && data.returnDateMs > 0)) &&
+             data.status in ['Pending', 'Approved', 'Borrowed', 'Returned', 'Rejected', 'Overdue'] &&
+             isNumeric(data.fineAmount) && data.fineAmount >= 0 && data.fineAmount <= 100000 &&
+             data.createdAt is timestamp &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidReservation(data) {
+      return data.keys().hasAll([
+               'ownerUid', 'userId', 'userName', 'bookId', 'bookTitle',
+               'reservationDateMs', 'status', 'pickupLocation', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'ownerUid', 'userId', 'userName', 'bookId', 'bookTitle',
+               'reservationDateMs', 'status', 'pickupLocation', 'createdAt', 'updatedAt'
+             ]) &&
+             isValidId(data.ownerUid) &&
+             isValidId(data.userId) &&
+             data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 120 &&
+             isValidId(data.bookId) &&
+             data.bookTitle is string && data.bookTitle.size() >= 1 && data.bookTitle.size() <= 200 &&
+             data.reservationDateMs is int && data.reservationDateMs > 0 &&
+             data.status in ['Pending', 'Ready for Pickup', 'Completed', 'Cancelled'] &&
+             data.pickupLocation is string && data.pickupLocation.size() >= 1 && data.pickupLocation.size() <= 120 &&
+             data.createdAt is timestamp &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidFine(data) {
+      return data.keys().hasAll([
+               'ownerUid', 'userId', 'userName', 'bookTitle',
+               'overdueDays', 'amount', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'ownerUid', 'userId', 'userName', 'studentId', 'borrowId',
+               'bookTitle', 'overdueDays', 'amount', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             isValidId(data.ownerUid) &&
+             isValidId(data.userId) &&
+             data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 120 &&
+             (!('studentId' in data) || (data.studentId is string && data.studentId.size() <= 60)) &&
+             (!('borrowId' in data) || (data.borrowId is string && data.borrowId.size() <= 128)) &&
+             data.bookTitle is string && data.bookTitle.size() >= 1 && data.bookTitle.size() <= 200 &&
+             data.overdueDays is int && data.overdueDays >= 0 && data.overdueDays <= 3650 &&
+             isNumeric(data.amount) && data.amount >= 0 && data.amount <= 100000 &&
+             data.status in ['Unpaid', 'Paid', 'Waived'] &&
+             data.createdAt is timestamp &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll([
+               'ownerUid', 'userId', 'title', 'message',
+               'type', 'isRead', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'ownerUid', 'userId', 'title', 'message',
+               'type', 'isRead', 'createdAt', 'updatedAt'
+             ]) &&
+             isValidId(data.ownerUid) &&
+             isValidId(data.userId) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 600 &&
+             data.type in ['INFO', 'APPROVAL', 'REJECTION', 'REMINDER', 'OVERDUE', 'RESERVATION', 'NEW_BOOK'] &&
+             data.isRead is bool &&
+             data.createdAt is timestamp &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    // --- Collection Rules ---
+
+    // 1. Campus Book Catalog (/books/{bookId})
+    match /books/{bookId} {
+      allow get: if isSignedIn() && isValidId(bookId) && existing().campusId == 'main';
+      allow list: if isSignedIn() && existing().campusId == 'main';
+
+      allow create: if isSignedIn() &&
+                       isValidId(bookId) &&
+                       isValidBook(incoming()) &&
+                       incoming().createdByUid == request.auth.uid &&
+                       isValidTimestamp(incoming().createdAt);
+
+      allow update: if isSignedIn() &&
+                       isValidId(bookId) &&
+                       isValidBook(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().createdByUid == existing().createdByUid &&
+                       incoming().campusId == existing().campusId && (
+                         // Action 1: Librarian or creator catalog edit
+                         ((isLibrarian() || existing().createdByUid == request.auth.uid) &&
+                          incoming().diff(existing()).affectedKeys().hasOnly([
+                            'title', 'author', 'isbn', 'category', 'publisher',
+                            'publicationYear', 'description', 'coverImage',
+                            'coverGradientIndex', 'totalCopies', 'availableCopies',
+                            'shelfNumber', 'rating', 'status', 'availabilityStatus', 'updatedAt'
+                          ])) ||
+                         // Action 2: Circulation checkout / return stock update
+                         ((incoming().availableCopies == existing().availableCopies - 1 ||
+                           incoming().availableCopies == existing().availableCopies + 1) &&
+                          incoming().diff(existing()).affectedKeys().hasOnly([
+                            'availableCopies', 'status', 'availabilityStatus', 'updatedAt'
+                          ]))
+                       );
+
+      allow delete: if isSignedIn() &&
+                       isValidId(bookId) &&
+                       (isLibrarian() || existing().createdByUid == request.auth.uid);
+    }
+
+    // 2. Private User Account & PII (/users/{userId})
+    match /users/{userId} {
+      allow get: if isSignedIn() &&
+                    isValidId(userId) &&
+                    (request.auth.uid == userId || isBootstrappedAdmin());
+
+      allow list: if isSignedIn() && existing().userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       isValidUserAccount(incoming()) &&
+                       isValidTimestamp(incoming().createdAt);
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       isValidUserAccount(incoming()) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'email', 'phone', 'preferredRole', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    // 3. In-App Librarian Role Opt-In (/librarians/{userId})
+    match /librarians/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       isValidLibrarianRole(incoming()) &&
+                       isValidTimestamp(incoming().createdAt);
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       isValidLibrarianRole(incoming()) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['active', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    // 4. Non-PII Member Directory Cards (/member_profiles/{memberId})
+    match /member_profiles/{memberId} {
+      allow get: if isSignedIn() &&
+                    isValidId(memberId) &&
+                    (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+
+      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(memberId) &&
+                       incoming().ownerUid == request.auth.uid &&
+                       isValidMemberProfile(incoming()) &&
+                       isValidTimestamp(incoming().createdAt);
+
+      allow update: if isSignedIn() &&
+                       isValidId(memberId) &&
+                       isValidMemberProfile(incoming()) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin()) &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'studentId', 'department', 'roleLabel',
+                         'membershipStatus', 'totalBorrowedCount', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() &&
+                       isValidId(memberId) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+    }
+
+    // 5. Circulation Loans (/loans/{loanId})
+    match /loans/{loanId} {
+      allow get: if isSignedIn() &&
+                    isValidId(loanId) &&
+                    (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+
+      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(loanId) &&
+                       incoming().ownerUid == request.auth.uid &&
+                       isValidLoan(incoming()) &&
+                       isValidTimestamp(incoming().createdAt) &&
+                       exists(/databases/$(database)/documents/books/$(incoming().bookId));
+
+      allow update: if isSignedIn() &&
+                       isValidId(loanId) &&
+                       isValidLoan(incoming()) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin()) &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().userId == existing().userId &&
+                       incoming().bookId == existing().bookId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (existing().status != 'Returned' || isLibrarian()) && (
+                         // Action 1: Renew due date
+                         (incoming().status == existing().status &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['dueDateMs', 'updatedAt'])) ||
+                         // Action 2: Return book or librarian status adjustment
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'returnDateMs', 'status', 'fineAmount', 'dueDateMs', 'updatedAt'
+                         ])
+                       );
+
+      allow delete: if isSignedIn() &&
+                       isValidId(loanId) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+    }
+
+    // 6. Book Reservations (/reservations/{reservationId})
+    match /reservations/{reservationId} {
+      allow get: if isSignedIn() &&
+                    isValidId(reservationId) &&
+                    (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+
+      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(reservationId) &&
+                       incoming().ownerUid == request.auth.uid &&
+                       isValidReservation(incoming()) &&
+                       isValidTimestamp(incoming().createdAt) &&
+                       exists(/databases/$(database)/documents/books/$(incoming().bookId));
+
+      allow update: if isSignedIn() &&
+                       isValidId(reservationId) &&
+                       isValidReservation(incoming()) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin()) &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().userId == existing().userId &&
+                       incoming().bookId == existing().bookId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (!(existing().status in ['Completed', 'Cancelled']) || isLibrarian()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'pickupLocation', 'updatedAt']);
+
+      allow delete: if isSignedIn() &&
+                       isValidId(reservationId) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+    }
+
+    // 7. Overdue Fines (/fines/{fineId})
+    match /fines/{fineId} {
+      allow get: if isSignedIn() &&
+                    isValidId(fineId) &&
+                    (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+
+      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(fineId) &&
+                       incoming().ownerUid == request.auth.uid &&
+                       isValidFine(incoming()) &&
+                       isValidTimestamp(incoming().createdAt);
+
+      allow update: if isSignedIn() &&
+                       isValidId(fineId) &&
+                       isValidFine(incoming()) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin()) &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (!(existing().status in ['Paid', 'Waived']) || isLibrarian()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'amount', 'updatedAt']);
+
+      allow delete: if isSignedIn() &&
+                       isValidId(fineId) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+    }
+
+    // 8. Member Notifications (/notifications/{notificationId})
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() &&
+                    isValidId(notificationId) &&
+                    (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+
+      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(notificationId) &&
+                       incoming().ownerUid == request.auth.uid &&
+                       isValidNotification(incoming()) &&
+                       isValidTimestamp(incoming().createdAt);
+
+      allow update: if isSignedIn() &&
+                       isValidId(notificationId) &&
+                       isValidNotification(incoming()) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin()) &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'updatedAt']);
+
+      allow delete: if isSignedIn() &&
+                       isValidId(notificationId) &&
+                       (existing().ownerUid == request.auth.uid || isBootstrappedAdmin());
+    }
+  }
+}

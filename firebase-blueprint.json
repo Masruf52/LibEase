@@ -1,0 +1,509 @@
+{
+  "entities": {
+    "Book": {
+      "title": "Book",
+      "description": "Shared campus library catalog item synchronized with local Room inventory.",
+      "type": "object",
+      "properties": {
+        "campusId": {
+          "type": "string",
+          "enum": ["main"],
+          "description": "Campus catalog partition identifier used for query-enforced list access."
+        },
+        "createdByUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user who cataloged this book."
+        },
+        "title": {
+          "type": "string",
+          "description": "Book title (1 to 200 characters)."
+        },
+        "author": {
+          "type": "string",
+          "description": "Author full name (1 to 150 characters)."
+        },
+        "isbn": {
+          "type": "string",
+          "description": "ISBN identifier (1 to 40 characters)."
+        },
+        "category": {
+          "type": "string",
+          "description": "Catalog subject category (1 to 60 characters)."
+        },
+        "publisher": {
+          "type": "string",
+          "description": "Publisher name (0 to 120 characters)."
+        },
+        "publicationYear": {
+          "type": "integer",
+          "description": "Year of publication."
+        },
+        "description": {
+          "type": "string",
+          "description": "Book synopsis or catalog notes (0 to 2000 characters)."
+        },
+        "coverImage": {
+          "type": "string",
+          "description": "Optional cover image URI or asset identifier (0 to 500 characters)."
+        },
+        "coverGradientIndex": {
+          "type": "integer",
+          "description": "Gradient palette index (0 to 7)."
+        },
+        "totalCopies": {
+          "type": "integer",
+          "description": "Total physical copies in library inventory."
+        },
+        "availableCopies": {
+          "type": "integer",
+          "description": "Currently available copies on shelf."
+        },
+        "shelfNumber": {
+          "type": "string",
+          "description": "Physical shelf location code (1 to 60 characters)."
+        },
+        "rating": {
+          "type": "number",
+          "description": "Average reader rating (0.0 to 5.0)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Available", "Borrowed", "Reserved", "Out of Stock"],
+          "description": "Circulation display status."
+        },
+        "availabilityStatus": {
+          "type": "string",
+          "enum": ["Available", "Borrowed", "Reserved", "Out of Stock"],
+          "description": "Inventory availability status mirrored to Room."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp submitted via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp submitted via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "campusId",
+        "createdByUid",
+        "title",
+        "author",
+        "isbn",
+        "category",
+        "totalCopies",
+        "availableCopies",
+        "shelfNumber",
+        "status",
+        "availabilityStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Owner-isolated private user account containing PII and portal preference.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated user's Firebase UID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name (1 to 120 characters)."
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address isolated to owner access (1 to 200 characters)."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Optional phone number (0 to 40 characters)."
+        },
+        "preferredRole": {
+          "type": "string",
+          "enum": ["ADMIN", "STUDENT"],
+          "description": "Selected active portal mode in-app."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp submitted via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp submitted via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "name", "email", "preferredRole", "createdAt", "updatedAt"]
+    },
+    "LibrarianRole": {
+      "title": "LibrarianRole",
+      "description": "Self-scoped Librarian portal registration enabling librarian catalog actions.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated user's Firebase UID matching document ID."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether Librarian portal mode is enabled for this user."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp submitted via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp submitted via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "active", "createdAt", "updatedAt"]
+    },
+    "MemberProfile": {
+      "title": "MemberProfile",
+      "description": "Non-PII library membership card summary scoped to ownerUid.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "description": "Authenticated Firebase UID owning or managing this member card."
+        },
+        "name": {
+          "type": "string",
+          "description": "Member full name (1 to 120 characters)."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Campus student or staff ID badge string (1 to 60 characters)."
+        },
+        "department": {
+          "type": "string",
+          "description": "Academic department or division (0 to 120 characters)."
+        },
+        "roleLabel": {
+          "type": "string",
+          "enum": ["ADMIN", "STUDENT"],
+          "description": "Member portal classification."
+        },
+        "membershipStatus": {
+          "type": "string",
+          "enum": ["Active", "Inactive", "Pending"],
+          "description": "Library card standing."
+        },
+        "totalBorrowedCount": {
+          "type": "integer",
+          "description": "Cumulative books borrowed."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp submitted via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp submitted via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "ownerUid",
+        "name",
+        "studentId",
+        "roleLabel",
+        "membershipStatus",
+        "totalBorrowedCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Loan": {
+      "title": "Loan",
+      "description": "Book circulation loan record synchronized with Room borrow_records.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "description": "Authenticated Firebase UID owning this circulation workspace."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Borrower member ID."
+        },
+        "userName": {
+          "type": "string",
+          "description": "Borrower display name."
+        },
+        "bookId": {
+          "type": "string",
+          "description": "Referenced catalog book ID."
+        },
+        "bookTitle": {
+          "type": "string",
+          "description": "Snapshot of borrowed book title."
+        },
+        "bookAuthor": {
+          "type": "string",
+          "description": "Snapshot of borrowed book author."
+        },
+        "borrowDateMs": {
+          "type": "integer",
+          "description": "Checkout epoch milliseconds."
+        },
+        "dueDateMs": {
+          "type": "integer",
+          "description": "Due date epoch milliseconds."
+        },
+        "returnDateMs": {
+          "type": "integer",
+          "description": "Optional return epoch milliseconds when returned."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pending", "Approved", "Borrowed", "Returned", "Rejected", "Overdue"],
+          "description": "Loan lifecycle status (Returned is terminal for non-librarians)."
+        },
+        "fineAmount": {
+          "type": "number",
+          "description": "Calculated late fine amount."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp submitted via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp submitted via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "ownerUid",
+        "userId",
+        "userName",
+        "bookId",
+        "bookTitle",
+        "bookAuthor",
+        "borrowDateMs",
+        "dueDateMs",
+        "status",
+        "fineAmount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Reservation": {
+      "title": "Reservation",
+      "description": "Book hold/reservation record synchronized with Room reservations.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "description": "Authenticated Firebase UID owning this reservation."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Member ID who placed the hold."
+        },
+        "userName": {
+          "type": "string",
+          "description": "Member display name."
+        },
+        "bookId": {
+          "type": "string",
+          "description": "Reserved catalog book ID."
+        },
+        "bookTitle": {
+          "type": "string",
+          "description": "Reserved book title."
+        },
+        "reservationDateMs": {
+          "type": "integer",
+          "description": "Hold timestamp in epoch milliseconds."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Pending", "Ready for Pickup", "Completed", "Cancelled"],
+          "description": "Reservation status."
+        },
+        "pickupLocation": {
+          "type": "string",
+          "description": "Library desk location (1 to 120 characters)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp submitted via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp submitted via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "ownerUid",
+        "userId",
+        "userName",
+        "bookId",
+        "bookTitle",
+        "reservationDateMs",
+        "status",
+        "pickupLocation",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Fine": {
+      "title": "Fine",
+      "description": "Overdue circulation fine record synchronized with Room fines.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "description": "Authenticated Firebase UID owning this fine record."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Member ID assessed the fine."
+        },
+        "userName": {
+          "type": "string",
+          "description": "Member display name."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Campus student ID."
+        },
+        "borrowId": {
+          "type": "string",
+          "description": "Associated loan ID."
+        },
+        "bookTitle": {
+          "type": "string",
+          "description": "Book title for which fine was assessed."
+        },
+        "overdueDays": {
+          "type": "integer",
+          "description": "Number of overdue days."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Monetary fine amount."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Unpaid", "Paid", "Waived"],
+          "description": "Settlement status (Paid and Waived are terminal for non-librarians)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp submitted via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp submitted via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "ownerUid",
+        "userId",
+        "userName",
+        "bookTitle",
+        "overdueDays",
+        "amount",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "NotificationAlert": {
+      "title": "NotificationAlert",
+      "description": "User library notification synchronized with Room notifications.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "description": "Authenticated Firebase UID owning this alert."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Recipient member ID."
+        },
+        "title": {
+          "type": "string",
+          "description": "Short notification heading (1 to 120 characters)."
+        },
+        "message": {
+          "type": "string",
+          "description": "Notification body text (1 to 600 characters)."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["INFO", "APPROVAL", "REJECTION", "REMINDER", "OVERDUE", "RESERVATION", "NEW_BOOK"],
+          "description": "Notification category."
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Whether the user has read the alert."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp submitted via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp submitted via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["ownerUid", "userId", "title", "message", "type", "isRead", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/books/{bookId}": {
+      "schema": { "$ref": "#/entities/Book" },
+      "description": "Campus library book catalog."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Owner-isolated private user accounts containing PII and role preference."
+    },
+    "/librarians/{userId}": {
+      "schema": { "$ref": "#/entities/LibrarianRole" },
+      "description": "Per-user Librarian role opt-in registry."
+    },
+    "/member_profiles/{memberId}": {
+      "schema": { "$ref": "#/entities/MemberProfile" },
+      "description": "Non-PII library membership directory cards."
+    },
+    "/loans/{loanId}": {
+      "schema": { "$ref": "#/entities/Loan" },
+      "description": "Book loan and return circulation records."
+    },
+    "/reservations/{reservationId}": {
+      "schema": { "$ref": "#/entities/Reservation" },
+      "description": "Book hold and pickup reservation records."
+    },
+    "/fines/{fineId}": {
+      "schema": { "$ref": "#/entities/Fine" },
+      "description": "Overdue fine assessment and payment records."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationAlert" },
+      "description": "Member circulation and reminder notifications."
+    }
+  }
+}

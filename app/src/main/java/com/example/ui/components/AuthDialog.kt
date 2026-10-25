@@ -16,29 +16,32 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.R
 import com.example.data.model.User
 import com.example.data.model.UserRole
+import com.example.ui.theme.DangerRed
 
 @Composable
 fun AuthDialog(
@@ -46,7 +49,7 @@ fun AuthDialog(
     currentUserId: String,
     onDismiss: () -> Unit,
     onSelectUser: (String) -> Unit,
-    onOpenLoginScreen: () -> Unit = {}
+    onSignOut: () -> Unit = {}
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -59,14 +62,13 @@ fun AuthDialog(
                     .fillMaxWidth()
                     .padding(20.dp)
             ) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Switch Account / Profile",
+                        text = "Synced Member Profiles",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -83,7 +85,7 @@ fun AuthDialog(
 
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Select any demo user profile to simulate permissions & data:",
+                    text = "Preview member profiles synced in your library directory:",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -93,7 +95,7 @@ fun AuthDialog(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp),
+                        .height(280.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(users) { user ->
@@ -173,27 +175,29 @@ fun AuthDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                Button(
+                OutlinedButton(
                     onClick = {
                         onDismiss()
-                        onOpenLoginScreen()
+                        onSignOut()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(46.dp),
+                        .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = DangerRed
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Person,
+                        imageVector = Icons.AutoMirrored.Filled.Logout,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Email & Password Login Screen", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = stringResource(R.string.sign_out_google),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

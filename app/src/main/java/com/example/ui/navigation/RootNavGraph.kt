@@ -22,10 +22,8 @@ import com.example.ui.viewmodel.AuthenticationViewModel
 import com.example.ui.viewmodel.LibraryViewModel
 
 /**
- * Root navigation graph managing top-level application destinations:
- * - Splash: Animated branding & authentication status check
- * - Login: Firebase email/password authentication & member registration
- * - Main: The core LMS experience with role-based portals (Admin & Student)
+ * Root navigation graph managing top-level application destinations with strict
+ * Google Sign-In authentication gating before composing Firestore-backed feature screens.
  */
 @Composable
 fun RootNavGraph(
@@ -35,6 +33,9 @@ fun RootNavGraph(
     authViewModel: AuthenticationViewModel = viewModel(),
     startDestination: String = NavRoutes.SPLASH
 ) {
+    val currentAuthUser by authViewModel.currentAuthUser.collectAsStateWithLifecycle()
+    val settings by libraryViewModel.settings.collectAsStateWithLifecycle()
+
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -42,27 +43,34 @@ fun RootNavGraph(
         enterTransition = { fadeIn(animationSpec = tween(300)) },
         exitTransition = { fadeOut(animationSpec = tween(300)) }
     ) {
-        // Splash Destination
+        // Splash Destination: Silent Credential Manager check -> Login or Main
         composable(
             route = NavRoutes.SPLASH,
             enterTransition = { fadeIn(animationSpec = tween(250)) },
             exitTransition = { fadeOut(animationSpec = tween(250)) }
         ) {
-            SplashScreen(
-                onNavigateToLogin = {
-                    navController.navigate(NavRoutes.LOGIN) {
-                        popUpTo(NavRoutes.SPLASH) { inclusive = true }
+            MyApplicationTheme(darkTheme = settings.isDarkMode) {
+                SplashScreen(
+                    authViewModel = authViewModel,
+                    onNavigateToLogin = {
+                        navController.navigate(NavRoutes.LOGIN) {
+                            popUpTo(NavRoutes.SPLASH) { inclusive = true }
+                        }
+                    },
+                    onNavigateToMain = { authUser ->
+                        libraryViewModel.bindAuthenticatedUser(
+                            authUser,
+                            authViewModel.uiState.value.selectedRole
+                        )
+                        navController.navigate(NavRoutes.MAIN) {
+                            popUpTo(NavRoutes.SPLASH) { inclusive = true }
+                        }
                     }
-                },
-                onNavigateToMain = {
-                    navController.navigate(NavRoutes.MAIN) {
-                        popUpTo(NavRoutes.SPLASH) { inclusive = true }
-                    }
-                }
-            )
+                )
+            }
         }
 
-        // Login / Register Destination
+        // Google Sign-In & Role Selection Destination
         composable(
             route = NavRoutes.LOGIN,
             enterTransition = {
@@ -78,41 +86,57 @@ fun RootNavGraph(
                 ) + fadeOut(animationSpec = tween(300))
             }
         ) {
-            LoginScreen(
-                authViewModel = authViewModel,
-                onLoginSuccess = { authUser ->
-                    libraryViewModel.handleAuthenticatedUser(authUser, authViewModel.uiState.value.selectedRole)
-                    navController.navigate(NavRoutes.MAIN) {
-                        popUpTo(NavRoutes.LOGIN) { inclusive = true }
+            MyApplicationTheme(darkTheme = settings.isDarkMode) {
+                LoginScreen(
+                    authViewModel = authViewModel,
+                    onLoginSuccess = { authUser ->
+                        libraryViewModel.bindAuthenticatedUser(
+                            authUser,
+                            authViewModel.uiState.value.selectedRole
+                        )
+                        navController.navigate(NavRoutes.MAIN) {
+                            popUpTo(NavRoutes.LOGIN) { inclusive = true }
+                        }
                     }
-                },
-                onDismissOrContinueGuest = {
-                    navController.navigate(NavRoutes.MAIN) {
-                        popUpTo(NavRoutes.LOGIN) { inclusive = true }
-                    }
-                }
-            )
+                )
+            }
         }
 
-        // Main LMS Experience (Admin Dashboard & Student Portal)
+        // Main LMS Experience (Strictly Auth-Gated)
         composable(
             route = NavRoutes.MAIN,
             enterTransition = { fadeIn(animationSpec = tween(350)) },
             exitTransition = { fadeOut(animationSpec = tween(350)) }
         ) {
-            LibEaseApp(
-                viewModel = libraryViewModel,
-                authViewModel = authViewModel,
-                onNavigateToAuth = {
-                    navController.navigate(NavRoutes.LOGIN)
-                },
-                onNavigateToAddBook = {
-                    navController.navigate(NavRoutes.ADD_BOOK)
+            if (currentAuthUser == null) {
+                MyApplicationTheme(darkTheme = settings.isDarkMode) {
+                    LoginScreen(
+                        authViewModel = authViewModel,
+                        onLoginSuccess = { authUser ->
+                            libraryViewModel.bindAuthenticatedUser(
+                                authUser,
+                                authViewModel.uiState.value.selectedRole
+                            )
+                        }
+                    )
                 }
-            )
+            } else {
+                LibEaseApp(
+                    viewModel = libraryViewModel,
+                    authViewModel = authViewModel,
+                    onSignOutComplete = {
+                        navController.navigate(NavRoutes.LOGIN) {
+                            popUpTo(NavRoutes.MAIN) { inclusive = true }
+                        }
+                    },
+                    onNavigateToAddBook = {
+                        navController.navigate(NavRoutes.ADD_BOOK)
+                    }
+                )
+            }
         }
 
-        // Add / Edit Book Screen Destination
+        // Add / Edit Book Screen Destination (Strictly Auth-Gated)
         composable(
             route = NavRoutes.ADD_BOOK,
             enterTransition = {
@@ -128,14 +152,25 @@ fun RootNavGraph(
                 ) + fadeOut(animationSpec = tween(250))
             }
         ) {
-            val settings by libraryViewModel.settings.collectAsStateWithLifecycle()
             MyApplicationTheme(darkTheme = settings.isDarkMode) {
-                AddBookScreen(
-                    viewModel = libraryViewModel,
-                    onNavigateBack = {
-                        navController.popBackStack()
-                    }
-                )
+                if (currentAuthUser == null) {
+                    LoginScreen(
+                        authViewModel = authViewModel,
+                        onLoginSuccess = { authUser ->
+                            libraryViewModel.bindAuthenticatedUser(
+                                authUser,
+                                authViewModel.uiState.value.selectedRole
+                            )
+                        }
+                    )
+                } else {
+                    AddBookScreen(
+                        viewModel = libraryViewModel,
+                        onNavigateBack = {
+                            navController.popBackStack()
+                        }
+                    )
+                }
             }
         }
     }

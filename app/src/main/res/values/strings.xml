@@ -26,4 +26,16 @@
     <string name="save_book_button">Save Book</string>
     <string name="update_book_button">Update Book</string>
     <string name="navigate_back_desc">Navigate back</string>
+    <string name="login_cloud_badge">CLOUD FIRESTORE + ROOM SYNC</string>
+    <string name="login_subtitle">Sign in with your Google account to sync books, loans, holds, and fines across devices.</string>
+    <string name="login_role_section_title">Choose Starting Portal Role</string>
+    <string name="login_role_section_hint">You can switch between Student and Librarian views anytime inside the app.</string>
+    <string name="role_student_label">Student</string>
+    <string name="role_student_desc">Browse, borrow &amp; reserve</string>
+    <string name="role_librarian_label">Librarian</string>
+    <string name="role_librarian_desc">Manage catalog &amp; fines</string>
+    <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="signing_in_with_google">Signing in…</string>
+    <string name="sign_out_google">Sign Out of Google Account</string>
+    <string name="cloud_sync_status_active">Cloud Sync Active • Firestore + Room Cache</string>
 </resources>
