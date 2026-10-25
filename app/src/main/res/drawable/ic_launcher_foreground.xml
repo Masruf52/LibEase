@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer White Disc Container -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,23 C71.12,23 85,36.88 85,54 C85,71.12 71.12,85 54,85 C36.88,85 23,71.12 23,54 C23,36.88 36.88,23 54,23 Z" />
+
+    <!-- LibEase Book Icon (Navy Blue #1E40AF) -->
+    <!-- Left Open Page Outline -->
+    <path
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M35,43 L49,39 C51,38.5 53,39.5 53,41.5 L53,65 C51,64 48,63.5 45,64 C41,64.8 37,67 35,68 L35,43 Z" />
+
+    <!-- Right Open Page Outline -->
+    <path
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M73,43 L59,39 C57,38.5 55,39.5 55,41.5 L55,65 C57,64 60,63.5 63,64 C67,64.8 71,67 73,68 L73,43 Z" />
+
+    <!-- Outer Book Binding Frame -->
+    <path
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M33,45 L33,70 L54,67 L75,70 L75,45" />
+
+    <!-- Bookmark Ribbon -->
+    <path
+        android:strokeColor="#1E40AF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#1E40AF"
+        android:pathData="M60,39 L60,53 L64,49.5 L68,53 L68,39 Z" />
+</vector>

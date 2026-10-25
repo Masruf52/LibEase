@@ -1,0 +1,6 @@
+{
+  "name": "LibEase",
+  "description": "A modern, scalable Library Management System for schools, universities, and public libraries with role-based portals for librarians and students.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
