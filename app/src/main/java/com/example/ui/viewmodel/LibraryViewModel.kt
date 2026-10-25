@@ -33,20 +33,27 @@ data class SystemSettings(
     val fontScale: Float = 1.0f
 )
 
-class LibraryViewModel(application: Application) : AndroidViewModel(application) {
-    private val database = LibEaseDatabase.getDatabase(application)
-    private val repository = LibraryRepository(
-        bookDao = database.bookDao(),
-        userDao = database.userDao(),
-        borrowRecordDao = database.borrowRecordDao(),
-        reservationDao = database.reservationDao(),
-        fineDao = database.fineDao(),
-        notificationDao = database.notificationDao()
-    )
+class LibraryViewModel @JvmOverloads constructor(
+    application: Application,
+    customRepository: LibraryRepository? = null
+) : AndroidViewModel(application) {
+    private val repository: LibraryRepository = customRepository ?: run {
+        val database = LibEaseDatabase.getDatabase(application)
+        LibraryRepository(
+            bookDao = database.bookDao(),
+            userDao = database.userDao(),
+            borrowRecordDao = database.borrowRecordDao(),
+            reservationDao = database.reservationDao(),
+            fineDao = database.fineDao(),
+            notificationDao = database.notificationDao()
+        )
+    }
 
     init {
-        viewModelScope.launch {
-            repository.seedInitialDataIfNeeded()
+        if (customRepository == null) {
+            viewModelScope.launch {
+                repository.seedInitialDataIfNeeded()
+            }
         }
     }
 
@@ -369,54 +376,75 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         title: String,
         author: String,
         isbn: String,
-        category: String,
-        publisher: String,
-        year: Int,
-        totalCopies: Int,
-        shelf: String,
-        description: String
+        category: String = "General",
+        publisher: String = "",
+        year: Int = 2026,
+        totalCopies: Int = 1,
+        shelf: String = "Shelf A-1",
+        description: String = "",
+        availabilityStatus: String? = null
     ) {
+        val cleanTitle = title.trim()
+        val cleanAuthor = author.trim()
+        val cleanIsbn = isbn.trim()
+        if (cleanTitle.isEmpty() || cleanAuthor.isEmpty() || cleanIsbn.isEmpty()) return
+
         viewModelScope.launch {
             val editing = _editingBook.value
             if (editing != null) {
-                val newAvailable = (editing.availableCopies + (totalCopies - editing.totalCopies)).coerceAtLeast(0)
-                val newStatus = if (newAvailable > 0) "Available" else "Borrowed"
+                val safeTotal = totalCopies.coerceAtLeast(1)
+                val computedAvailable = (editing.availableCopies + (safeTotal - editing.totalCopies))
+                    .coerceIn(0, safeTotal)
+                val resolvedAvailable = when (availabilityStatus) {
+                    "Borrowed", "Out of Stock" -> 0
+                    "Available" -> if (computedAvailable > 0) computedAvailable else safeTotal
+                    else -> computedAvailable
+                }
+                val newStatus = availabilityStatus
+                    ?: if (resolvedAvailable > 0) "Available" else "Borrowed"
                 val updated = editing.copy(
-                    title = title,
-                    author = author,
-                    isbn = isbn,
+                    title = cleanTitle,
+                    author = cleanAuthor,
+                    isbn = cleanIsbn,
                     category = category,
-                    publisher = publisher,
+                    publisher = publisher.trim(),
                     publicationYear = year,
-                    totalCopies = totalCopies,
-                    availableCopies = newAvailable,
+                    totalCopies = safeTotal,
+                    availableCopies = resolvedAvailable,
                     status = newStatus,
                     availabilityStatus = newStatus,
-                    shelfNumber = shelf,
-                    description = description
+                    shelfNumber = shelf.trim().ifEmpty { "Shelf A-1" },
+                    description = description.trim()
                 )
                 repository.updateBook(updated)
-                showFeedback("Book \"$title\" updated successfully!")
+                showFeedback("Book \"$cleanTitle\" updated successfully!")
             } else {
-                val statusText = if (totalCopies > 0) "Available" else "Out of Stock"
+                val safeTotal = totalCopies.coerceAtLeast(1)
+                val resolvedStatus = availabilityStatus
+                    ?: if (totalCopies > 0) "Available" else "Out of Stock"
+                val resolvedAvailable = if (resolvedStatus.equals("Available", ignoreCase = true)) {
+                    safeTotal
+                } else {
+                    0
+                }
                 val newBook = Book(
                     bookId = "book_" + System.currentTimeMillis(),
-                    title = title,
-                    author = author,
-                    isbn = isbn,
+                    title = cleanTitle,
+                    author = cleanAuthor,
+                    isbn = cleanIsbn,
                     category = category,
-                    publisher = publisher,
+                    publisher = publisher.trim(),
                     publicationYear = year,
-                    totalCopies = totalCopies,
-                    availableCopies = totalCopies,
-                    status = statusText,
-                    availabilityStatus = statusText,
-                    shelfNumber = shelf,
-                    description = description,
+                    totalCopies = safeTotal,
+                    availableCopies = resolvedAvailable,
+                    status = resolvedStatus,
+                    availabilityStatus = resolvedStatus,
+                    shelfNumber = shelf.trim().ifEmpty { "Shelf A-1" },
+                    description = description.trim(),
                     coverGradientIndex = (0..7).random()
                 )
                 repository.addBook(newBook)
-                showFeedback("New book \"$title\" cataloged!")
+                showFeedback("New book \"$cleanTitle\" saved to catalog!")
             }
             closeAddBookDialog()
         }

@@ -5,15 +5,19 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.LibEaseApp
+import com.example.ui.screens.AddBookScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.SplashScreen
+import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.AuthenticationViewModel
 import com.example.ui.viewmodel.LibraryViewModel
 
@@ -101,8 +105,38 @@ fun RootNavGraph(
                 authViewModel = authViewModel,
                 onNavigateToAuth = {
                     navController.navigate(NavRoutes.LOGIN)
+                },
+                onNavigateToAddBook = {
+                    navController.navigate(NavRoutes.ADD_BOOK)
                 }
             )
+        }
+
+        // Add / Edit Book Screen Destination
+        composable(
+            route = NavRoutes.ADD_BOOK,
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                    animationSpec = tween(300)
+                ) + fadeIn(animationSpec = tween(250))
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                    animationSpec = tween(300)
+                ) + fadeOut(animationSpec = tween(250))
+            }
+        ) {
+            val settings by libraryViewModel.settings.collectAsStateWithLifecycle()
+            MyApplicationTheme(darkTheme = settings.isDarkMode) {
+                AddBookScreen(
+                    viewModel = libraryViewModel,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
         }
     }
 }

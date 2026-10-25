@@ -1,3 +1,29 @@
 <resources>
     <string name="app_name">LibEase</string>
+    <string name="add_book_screen_title">Add New Book</string>
+    <string name="edit_book_screen_title">Edit Book Details</string>
+    <string name="add_book_screen_subtitle">Enter bibliographic details to save this title to local Room inventory.</string>
+    <string name="book_core_details_section">Bibliographic Information</string>
+    <string name="book_title_label">Book Title *</string>
+    <string name="book_title_placeholder">e.g., Clean Architecture</string>
+    <string name="book_title_error">Please enter a book title</string>
+    <string name="book_author_label">Author *</string>
+    <string name="book_author_placeholder">e.g., Robert C. Martin</string>
+    <string name="book_author_error">Please enter the author name</string>
+    <string name="book_isbn_label">ISBN *</string>
+    <string name="book_isbn_placeholder">e.g., 978-0134494166</string>
+    <string name="book_isbn_error">Please enter a valid ISBN</string>
+    <string name="book_availability_section">Availability Status</string>
+    <string name="book_status_available">Available</string>
+    <string name="book_status_borrowed">Borrowed</string>
+    <string name="book_optional_details_toggle">Additional Catalog Details (Optional)</string>
+    <string name="book_category_label">Category</string>
+    <string name="book_shelf_label">Shelf Location</string>
+    <string name="book_copies_label">Total Copies</string>
+    <string name="book_publisher_label">Publisher</string>
+    <string name="book_year_label">Publication Year</string>
+    <string name="book_description_label">Synopsis / Notes</string>
+    <string name="save_book_button">Save Book</string>
+    <string name="update_book_button">Update Book</string>
+    <string name="navigate_back_desc">Navigate back</string>
 </resources>

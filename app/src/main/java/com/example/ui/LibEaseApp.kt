@@ -20,7 +20,6 @@ import com.example.ui.admin.AdminDashboardScreen
 import com.example.ui.admin.BookManagementScreen
 import com.example.ui.admin.FineManagementScreen
 import com.example.ui.admin.MemberManagementScreen
-import com.example.ui.components.AddEditBookDialog
 import com.example.ui.components.AddMemberDialog
 import com.example.ui.components.AuthDialog
 import com.example.ui.components.BarcodeScannerDialog
@@ -29,6 +28,7 @@ import com.example.ui.components.LibEaseBottomNav
 import com.example.ui.components.LibEaseTopBar
 import com.example.ui.components.MemberProfileDialog
 import com.example.ui.components.NotificationsDialog
+import com.example.ui.screens.AddBookScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.student.MyBooksScreen
@@ -41,7 +41,8 @@ import com.example.ui.viewmodel.LibraryViewModel
 fun LibEaseApp(
     viewModel: LibraryViewModel = viewModel(),
     authViewModel: AuthenticationViewModel = viewModel(),
-    onNavigateToAuth: (() -> Unit)? = null
+    onNavigateToAuth: (() -> Unit)? = null,
+    onNavigateToAddBook: (() -> Unit)? = null
 ) {
     var showLoginScreen by remember { mutableStateOf(false) }
     val openLoginAction: () -> Unit = {
@@ -49,6 +50,14 @@ fun LibEaseApp(
             onNavigateToAuth()
         } else {
             showLoginScreen = true
+        }
+    }
+    val openAddBookAction: () -> Unit = {
+        if (onNavigateToAddBook != null) {
+            viewModel.closeAddBookDialog()
+            onNavigateToAddBook()
+        } else {
+            viewModel.openAddBookDialog()
         }
     }
 
@@ -102,6 +111,11 @@ fun LibEaseApp(
                     showLoginScreen = false
                 }
             )
+        } else if (showAddBookDialog && onNavigateToAddBook == null) {
+            AddBookScreen(
+                viewModel = viewModel,
+                onNavigateBack = { viewModel.closeAddBookDialog() }
+            )
         } else {
             Scaffold(
                 topBar = {
@@ -146,7 +160,7 @@ fun LibEaseApp(
                             users = allUsers,
                             borrowRecords = allBorrowRecords,
                             fines = allFines,
-                            onAddBookClick = { viewModel.openAddBookDialog() },
+                            onAddBookClick = openAddBookAction,
                             onAddMemberClick = { viewModel.openAddMemberDialog() },
                             onScanClick = { viewModel.toggleScanner(true) },
                             onRemindMember = { userId, title -> viewModel.sendOverdueReminder(userId, title) },
@@ -159,7 +173,7 @@ fun LibEaseApp(
                             onSearchQueryChange = { viewModel.setSearchQuery(it) },
                             onCategoryChange = { viewModel.setSelectedCategory(it) },
                             onBookClick = { viewModel.openBookDetails(it) },
-                            onAddBookClick = { viewModel.openAddBookDialog() }
+                            onAddBookClick = openAddBookAction
                         )
                         "members" -> MemberManagementScreen(
                             users = allUsers,
@@ -195,7 +209,7 @@ fun LibEaseApp(
                             users = allUsers,
                             borrowRecords = allBorrowRecords,
                             fines = allFines,
-                            onAddBookClick = { viewModel.openAddBookDialog() },
+                            onAddBookClick = openAddBookAction,
                             onAddMemberClick = { viewModel.openAddMemberDialog() },
                             onScanClick = { viewModel.toggleScanner(true) },
                             onRemindMember = { userId, title -> viewModel.sendOverdueReminder(userId, title) },
@@ -224,7 +238,7 @@ fun LibEaseApp(
                             onSearchQueryChange = { viewModel.setSearchQuery(it) },
                             onCategoryChange = { viewModel.setSelectedCategory(it) },
                             onBookClick = { viewModel.openBookDetails(it) },
-                            onAddBookClick = { viewModel.openAddBookDialog() }
+                            onAddBookClick = openAddBookAction
                         )
                         "my_books" -> MyBooksScreen(
                             currentTab = selectedMyBooksTab,
@@ -277,18 +291,9 @@ fun LibEaseApp(
                         onEdit = {
                             viewModel.closeBookDetails()
                             viewModel.openEditBookDialog(book)
+                            onNavigateToAddBook?.invoke()
                         },
                         onDelete = { viewModel.deleteBook(book.bookId) }
-                    )
-                }
-
-                if (showAddBookDialog) {
-                    AddEditBookDialog(
-                        editingBook = editingBook,
-                        onDismiss = { viewModel.closeAddBookDialog() },
-                        onSave = { title, author, isbn, category, publisher, year, copies, shelf, desc ->
-                            viewModel.saveBook(title, author, isbn, category, publisher, year, copies, shelf, desc)
-                        }
                     )
                 }
 
